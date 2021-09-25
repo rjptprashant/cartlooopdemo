@@ -1,0 +1,75 @@
+version: "3.9"
+   
+services:
+    postgres:
+      image: postgres:12.7-alpine
+      hostname: postgres
+      volumes:
+        - postgres_data:/var/lib/postgresql/data/
+      environment:
+        - POSTGRES_DB=postgres
+        - POSTGRES_USER=postgres
+        - POSTGRES_PASSWORD=postgres
+      restart: always
+
+    redis:
+      restart: always
+      image: redis:6.2.5-alpine    
+      command: ["redis-server", "--appendonly", "yes"]
+      volumes:
+        - redis-data:/data
+
+    web:
+      build: .
+      command: ./scripts/api.sh
+      volumes:
+        - .:/app
+      environment:
+        - ENV=dev
+        - POSTGRES_DB=postgres
+        - POSTGRES_USER=postgres
+        - POSTGRES_PASSWORD=postgres
+        - REDIS_HOST=redis
+      volumes:
+        - .:/app
+        - static_volume:/app/static
+      depends_on:
+        - postgres
+        - redis
+      restart: always
+
+    celery:
+      build: .
+      command: ./scripts/celery.sh
+      volumes:
+        - .:/app
+      environment:
+        - ENV=dev
+        - POSTGRES_DB=postgres
+        - POSTGRES_USER=postgres
+        - POSTGRES_PASSWORD=postgres
+        - REDIS_HOST=redis
+      volumes:
+        - .:/app
+        - static_volume:/app/static
+      depends_on:
+        - postgres
+        - web
+        - redis
+      restart: always
+
+    nginx:
+      restart: on-failure
+      image: nginx:1.19.8
+      volumes:
+        - ./scripts/nginx.conf:/etc/nginx/conf.d/default.conf
+        - static_volume:/app/static
+      ports:
+        - 80:80
+      depends_on:
+          - web
+
+volumes:
+  static_volume:
+  postgres_data:
+  redis-data:
